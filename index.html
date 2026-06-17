@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Loan Calculator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Vue 3 for Reactivity -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Chart.js for Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        [v-cloak] { display: none !important; } 
+        
+        /* Smooth transitions */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(10px); }
+        .slide-fade-enter-active { transition: all 0.4s ease-out; }
+        .slide-fade-enter-from { transform: translateX(20px); opacity: 0; }
+        
+        /* CBT Animations */
+        .zoom-in-enter-active { transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .zoom-in-enter-from { opacity: 0; transform: scale(0.95); }
+        .cbt-fade-enter-active { transition: opacity 0.4s ease, transform 0.4s ease; }
+        .cbt-fade-enter-from { opacity: 0; transform: translateY(10px); }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak class="min-h-screen bg-slate-50 text-slate-800 pb-12 flex flex-col">
+        
+        <!-- VIEW: LANDING PAGE -->
+        <div v-if="appState === 'start'" class="flex-grow flex items-center justify-center p-6">
+            <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-8 text-center">
+                <div class="bg-blue-600 w-20 h-20 rounded-2xl text-white shadow-lg flex items-center justify-center mx-auto mb-6 transform -rotate-6">
+                    <i class="fa-solid fa-graduation-cap text-4xl"></i>
+                </div>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Student Loan Calculator</h1>
+                <p class="text-slate-500 mb-8">Reframing the Graduate Contribution. Let's map out your real financial future, step by step.</p>
+                <button @click="appState = 'onboarding_1'" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2">
+                    Start Your Projection <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- VIEW: ONBOARDING WIZARD -->
+        <div v-if="appState === 'onboarding_1' || appState === 'onboarding_2'" class="flex-grow flex items-center justify-center p-6">
+            <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
+                    <span class="text-sm font-semibold text-slate-500">Step {{ appState === 'onboarding_1' ? '1' : '2' }} of 2</span>
+                    <div class="flex gap-1">
+                        <div class="h-2 w-8 rounded-full" :class="appState === 'onboarding_1' ? 'bg-blue-600' : 'bg-slate-200'"></div>
+                        <div class="h-2 w-8 rounded-full" :class="appState === 'onboarding_2' ? 'bg-blue-600' : 'bg-slate-200'"></div>
+                    </div>
+                </div>
+
+                <!-- Step 1 -->
+                <div v-if="appState === 'onboarding_1'" class="p-8 space-y-6">
+                    <h2 class="text-2xl font-bold text-slate-900">Let's start with the basics</h2>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Which Student Loan Plan are you on?</label>
+                        <select v-model="planSelection" class="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-lg">
+                            <option value="null" disabled>Select your plan...</option>
+                            <option v-for="plan in plans" :key="plan.id" :value="plan.id">
+                                {{ plan.name }} (Threshold: £{{ plan.threshold.toLocaleString() }})
+                            </option>
+                            <option value="unknown" class="font-bold text-blue-600">I don't know my plan</option>
+                        </select>
+                    </div>
+
+                    <!-- I Don't Know My Plan - Wizard -->
+                    <transition name="slide-fade">
+                        <div v-if="planSelection === 'unknown'" class="p-5 bg-blue-50 border border-blue-100 rounded-xl space-y-4">
+                            <h3 class="font-bold text-blue-900 flex items-center gap-2"><i class="fa-solid fa-magnifying-glass"></i> Let's find your plan</h3>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-blue-800 mb-1">Did you study in Scotland?</label>
+                                <div class="flex gap-3">
+                                    <button @click="isScottish = true; findPlan()" :class="isScottish === true ? 'bg-blue-600 text-white' : 'bg-white text-blue-700'" class="flex-1 py-2 rounded-lg border border-blue-200 font-medium transition-colors">Yes</button>
+                                    <button @click="isScottish = false; findPlan()" :class="isScottish === false ? 'bg-blue-600 text-white' : 'bg-white text-blue-700'" class="flex-1 py-2 rounded-lg border border-blue-200 font-medium transition-colors">No</button>
+                                </div>
+                            </div>
+
+                            <div v-if="isScottish !== null && !isScottish">
+                                <label class="block text-sm font-medium text-blue-800 mb-1">When did you start your course?</label>
+                                <select v-model="unknownStartYear" @change="findPlan" class="w-full p-2.5 rounded-lg border border-blue-200 outline-none bg-white">
+                                    <option value="null" disabled>Select start period...</option>
+                                    <option value="pre2012">Before September 2012</option>
+                                    <option value="2012to2023">Between Sept 2012 and July 2023</option>
+                                    <option value="post2023">After August 2023</option>
+                                </select>
+                            </div>
+
+                            <div v-if="determinedPlanId" class="mt-4 p-3 bg-emerald-100 text-emerald-800 rounded-lg flex items-center gap-2 font-medium">
+                                <i class="fa-solid fa-circle-check"></i> We've determined you are on {{ plans[determinedPlanId].name }}.
+                            </div>
+                        </div>
+                    </transition>
+
+                    <!-- Start Year & Validation -->
+                    <transition name="slide-fade">
+                        <div v-if="activePlanId !== null">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">What year did you take out your loan? (Start Year)</label>
+                            <input type="number" min="1990" :max="new Date().getFullYear()" v-model.number="loanStartYear" placeholder="e.g. 2018" class="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-lg">
+                            <p class="text-xs text-slate-500 mt-1">This helps us calculate exactly how many years you have left until the write-off.</p>
+                            
+                            <transition name="fade">
+                                <div v-if="planYearWarning" class="mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-sm flex items-start gap-2 shadow-sm">
+                                    <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                                    <span>{{ planYearWarning }}</span>
+                                </div>
+                            </transition>
+                        </div>
+                    </transition>
+
+                    <transition name="slide-fade">
+                        <div v-if="activePlanId !== null && loanStartYear > 1990">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Current Loan Balance</label>
+                            <div class="relative flex items-center">
+                                <span class="absolute left-4 text-slate-500 font-bold">£</span>
+                                <input type="number" v-model.number="currentBalance" class="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-lg">
+                            </div>
+                        </div>
+                    </transition>
+
+                    <div class="pt-4 flex justify-end">
+                        <button 
+                            :disabled="activePlanId === null || loanStartYear === null || currentBalance === null || planYearWarning"
+                            @click="appState = 'onboarding_2'" 
+                            class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-xl transition-all"
+                        >
+                            Next <i class="fa-solid fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div v-if="appState === 'onboarding_2'" class="p-8 space-y-6">
+                    <button @click="appState = 'onboarding_1'" class="text-slate-500 hover:text-slate-800 text-sm font-medium mb-2 flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Back
+                    </button>
+                    <h2 class="text-2xl font-bold text-slate-900">Your Earning Trajectory</h2>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Current Annual Salary</label>
+                        <div class="relative flex items-center">
+                            <span class="absolute left-4 text-slate-500 font-bold">£</span>
+                            <input type="number" v-model.number="currentSalary" class="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-lg">
+                        </div>
+                    </div>
+
+                    <transition name="slide-fade">
+                        <div v-if="currentSalary > 0">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Expected Peak Salary</label>
+                            <div class="relative flex items-center">
+                                <span class="absolute left-4 text-slate-500 font-bold">£</span>
+                                <input type="number" v-model.number="peakSalary" class="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-lg">
+                            </div>
+                        </div>
+                    </transition>
+
+                    <transition name="slide-fade">
+                        <div v-if="peakSalary > currentSalary">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Expected Years to Peak Salary</label>
+                            <div class="flex items-center gap-4">
+                                <input type="range" min="1" max="40" v-model.number="yearsToPeak" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                                <span class="font-bold text-slate-700 w-20 text-right">{{ yearsToPeak }} yrs</span>
+                            </div>
+                        </div>
+                    </transition>
+
+                    <div class="pt-4 flex justify-end">
+                        <button 
+                            @click="finishOnboarding" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-md flex items-center gap-2"
+                        >
+                            <i class="fa-solid fa-chart-line"></i> Generate Overview
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN APP HEADER -->
+        <header v-if="appState === 'dashboard' || appState === 'profile'" class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-blue-600 p-2 rounded-lg text-white shadow-sm">
+                            <i class="fa-solid fa-graduation-cap text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-slate-900 tracking-tight">Student Loan Calculator</h1>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button 
+                            @click="appState = 'profile'"
+                            class="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg transition-colors"
+                        >
+                            <i class="fa-solid fa-user-pen"></i> Update Profile
+                        </button>
+                        <button 
+                            @click="activeTab = 'support'; appState = 'dashboard'"
+                            class="flex items-center gap-2 text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-lg transition-colors"
+                        >
+                            <i class="fa-solid fa-leaf"></i> Feeling Overwhelmed?
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Navigation -->
+                <nav v-if="appState === 'dashboard'" class="flex space-x-2 overflow-x-auto mt-6 pb-2 scrollbar-hide">
+                    <button @click="activeTab = 'overview'" :class="activeTab === 'overview' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                        <i class="fa-solid fa-chart-area" :class="activeTab === 'overview' ? 'text-blue-300' : 'text-slate-400'"></i> Overview
+                    </button>
+                    <button @click="activeTab = 'opportunity'" :class="activeTab === 'opportunity' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                        <i class="fa-solid fa-scale-balanced" :class="activeTab === 'opportunity' ? 'text-blue-300' : 'text-slate-400'"></i> Overpay vs Invest
+                    </button>
+                    <button @click="activeTab = 'reframe'" :class="activeTab === 'reframe' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                        <i class="fa-solid fa-lightbulb" :class="activeTab === 'reframe' ? 'text-blue-300' : 'text-slate-400'"></i> Reality Check
+                    </button>
+                    <button @click="activeTab = 'support'" :class="activeTab === 'support' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                        <i class="fa-solid fa-heart" :class="activeTab === 'support' ? 'text-emerald-400' : 'text-slate-400'"></i> Support
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- VIEW: EDIT PROFILE -->
+        <main v-if="appState === 'profile'" class="max-w-4xl mx-auto w-full px-4 py-8 flex-grow">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                    <h2 class="text-2xl font-bold text-slate-900"><i class="fa-solid fa-sliders text-blue-500 mr-2"></i> Update Your Profile</h2>
+                    <button @click="appState = 'dashboard'; activeTab = 'overview'" class="text-slate-400 hover:text-slate-800"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Student Loan Plan</label>
+                        <select v-model="planSelection" @change="if(planSelection !== 'unknown') { isScottish = null; unknownStartYear = null; }" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option v-for="plan in plans" :key="plan.id" :value="plan.id">{{ plan.name }}</option>
+                            <option value="unknown" class="font-bold text-blue-600">I don't know my plan</option>
+                        </select>
+                        
+                        <!-- Mini Unknown Wizard for Profile -->
+                        <div v-if="planSelection === 'unknown'" class="mt-3 p-4 bg-blue-50 rounded-lg text-sm border border-blue-100 space-y-3">
+                            <div>
+                                <span class="block font-medium text-blue-800 mb-1">Scotland?</span>
+                                <div class="flex gap-2">
+                                    <button @click="isScottish = true; findPlan()" :class="isScottish === true ? 'bg-blue-600 text-white' : 'bg-white text-blue-700'" class="flex-1 py-1 rounded border border-blue-200 transition-colors">Yes</button>
+                                    <button @click="isScottish = false; findPlan()" :class="isScottish === false ? 'bg-blue-600 text-white' : 'bg-white text-blue-700'" class="flex-1 py-1 rounded border border-blue-200 transition-colors">No</button>
+                                </div>
+                            </div>
+                            <div v-if="isScottish === false">
+                                <span class="block font-medium text-blue-800 mb-1">Started course:</span>
+                                <select v-model="unknownStartYear" @change="findPlan" class="w-full p-1.5 rounded border border-blue-200">
+                                    <option value="null" disabled>Select...</option>
+                                    <option value="pre2012">Before Sept 2012</option>
+                                    <option value="2012to2023">Sept 2012 - July 2023</option>
+                                    <option value="post2023">After Aug 2023</option>
+                                </select>
+                            </div>
+                            <div v-if="determinedPlanId" class="text-emerald-700 font-bold"><i class="fa-solid fa-check"></i> Found: {{ plans[determinedPlanId].name }}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Current Salary</label>
+                        <div class="relative flex items-center">
+                            <span class="absolute left-3 text-slate-500">£</span>
+                            <input type="number" v-model.number="currentSalary" class="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Current Balance</label>
+                        <div class="relative flex items-center">
+                            <span class="absolute left-3 text-slate-500">£</span>
+                            <input type="number" v-model.number="currentBalance" class="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Expected Peak Salary</label>
+                        <div class="relative flex items-center">
+                            <span class="absolute left-3 text-slate-500">£</span>
+                            <input type="number" v-model.number="peakSalary" class="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Loan Start Year</label>
+                        <input type="number" v-model.number="loanStartYear" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Expected Years to Peak Salary: <span class="text-blue-600 font-bold">{{ yearsToPeak }}</span></label>
+                        <input type="range" min="1" max="40" v-model.number="yearsToPeak" class="w-full h-2 mt-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <transition name="fade">
+                            <div v-if="planYearWarning" class="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-sm flex items-start gap-3 shadow-sm">
+                                <i class="fa-solid fa-circle-exclamation mt-0.5 text-rose-500"></i>
+                                <span class="font-medium">{{ planYearWarning }}</span>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end">
+                    <button :disabled="activePlanId === null || planYearWarning" @click="appState = 'dashboard'; activeTab = 'overview'" class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">
+                        Save & View Overview
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- VIEW: MAIN DASHBOARD -->
+        <main v-if="appState === 'dashboard'" class="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex-grow">
+            
+            <!-- TAB: OVERVIEW -->
+            <div v-show="activeTab === 'overview'" class="space-y-6">
+                
+                <!-- Huge Write-Off Highlight Card -->
+                <div v-if="!projectionSummary.paysOffEarly" class="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-lg p-6 sm:p-10 text-white relative overflow-hidden mb-6">
+                    <div class="relative z-10">
+                        <p class="text-emerald-100 font-semibold uppercase tracking-wider mb-2"><i class="fa-solid fa-stamp mr-2"></i> Projected Government Write-Off</p>
+                        <h3 class="text-5xl sm:text-7xl font-extrabold mb-4">{{ formatMoney(projectionSummary.writtenOffReal) }}</h3>
+                        <p class="text-emerald-50 text-lg max-w-2xl">Because of how student loans work, this remaining balance will be legally wiped at the end of your term in <strong class="text-white">{{ remainingYears }} years.</strong> You do not need to pay this back.</p>
+                        <p class="text-emerald-200 text-sm mt-4">Adjusted for inflation</p>
+                    </div>
+                    <i class="fa-solid fa-eraser absolute -right-10 -bottom-10 text-9xl text-emerald-400 opacity-20 transform -rotate-12" style="font-size: 250px;"></i>
+                </div>
+
+                <!-- Huge Pay-Off Highlight Card (If clearing early) -->
+                <div v-else class="bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl shadow-lg p-6 sm:p-10 text-white relative overflow-hidden mb-6">
+                    <div class="relative z-10">
+                        <p class="text-indigo-100 font-semibold uppercase tracking-wider mb-2"><i class="fa-solid fa-trophy mr-2"></i> On Track To Pay Off Early</p>
+                        <h3 class="text-5xl sm:text-7xl font-extrabold mb-4">In {{ projectionSummary.payOffYear }} Years</h3>
+                        <p class="text-indigo-50 text-lg max-w-2xl">Because of your strong earning trajectory, you are projected to completely clear your balance naturally before the write-off date. <strong class="text-white">You will beat the {{ currentPlanDetails.writeOffYears }}-year clock.</strong></p>
+                    </div>
+                    <i class="fa-solid fa-rocket absolute -right-10 -bottom-10 text-9xl text-indigo-400 opacity-20 transform -rotate-12" style="font-size: 250px;"></i>
+                </div>
+
+                <!-- Secondary Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-center">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider mb-1">Total You Will Actually Pay by the end of {{ projectionSummary.paysOffEarly ? projectionSummary.payOffYear : remainingYears }} years</p>
+                        <p class="text-3xl font-bold text-slate-900 mb-2">{{ formatMoney(projectionSummary.totalPaidReal) }}</p>
+                        <div class="text-sm text-slate-500">
+                            Adjusted for inflation
+                        </div>
+                        <div class="text-sm text-slate-600 mt-3 pt-3 border-t border-slate-100">
+                            (Avg. {{ formatMoney(averageMonthlyReal) }}/month over {{ projectionSummary.paysOffEarly ? projectionSummary.payOffYear : remainingYears }} years)
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-center">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider mb-1">Final Status</p>
+                        <template v-if="projectionSummary.paysOffEarly">
+                            <p class="text-2xl font-bold text-indigo-600 mb-1"><i class="fa-solid fa-circle-check"></i> Cleared Early</p>
+                            <p class="text-sm text-slate-600">in {{ projectionSummary.payOffYear }} years</p>
+                        </template>
+                        <template v-else>
+                            <p class="text-2xl font-bold text-indigo-600 mb-1"><i class="fa-solid fa-file-shield"></i> Written Off</p>
+                            <p class="text-sm text-slate-600">after {{ remainingYears }} remaining years</p>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Main Layout Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- What If Scenarios Sidebar -->
+                    <div class="bg-blue-50/50 rounded-xl shadow-sm border border-blue-100 p-6 flex flex-col lg:col-span-1">
+                        <h2 class="text-lg font-bold flex items-center gap-2 mb-2 text-blue-900">
+                            <i class="fa-solid fa-shuffle text-blue-500"></i> What If Scenarios
+                        </h2>
+                        <p class="text-sm text-slate-600 mb-6">
+                            See how life events affect your contribution.
+                        </p>
+                        
+                        <div class="space-y-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Scenario Type</label>
+                                <select v-model="scenarioType" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                    <option value="none">Normal Career Path</option>
+                                    <option value="career_break">Take a Career Break</option>
+                                    <option value="part_time">Switch to Part-Time</option>
+                                </select>
+                            </div>
+
+                            <transition name="fade">
+                                <div v-if="scenarioType !== 'none'" class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Starts in (years from now)</label>
+                                        <input type="number" min="1" v-model.number="scenarioStartYear" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">
+                                            Duration: <span class="font-bold text-blue-600">{{ scenarioDuration }} years</span>
+                                        </label>
+                                        <input type="range" min="1" max="50" v-model.number="scenarioDuration" class="w-full h-2 mt-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                                    </div>
+
+                                    <div v-if="scenarioType === 'part_time'">
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Part-Time Salary</label>
+                                        <div class="relative flex items-center">
+                                            <span class="absolute left-3 text-slate-500">£</span>
+                                            <input type="number" v-model.number="partTimeSalary" class="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-white p-4 rounded-lg text-sm border border-blue-200 shadow-sm">
+                                        <div class="flex gap-2 text-blue-800 font-medium mb-1">
+                                            <i class="fa-solid fa-circle-info mt-0.5 text-blue-500"></i> Note:
+                                        </div>
+                                        <p class="text-slate-600 leading-relaxed" v-if="!projectionSummary.paysOffEarly">
+                                            Notice how the Write-Off Amount increases at the top of the screen. You aren't penalised; the final wiped amount just gets bigger.
+                                        </p>
+                                        <p class="text-slate-600 leading-relaxed" v-else>
+                                            Notice how taking a break means you'll still pay it back, but it will take longer to clear and cost a bit more in accumulated interest.
+                                        </p>
+                                    </div>
+                                </div>
+                            </transition>
+                        </div>
+                    </div>
+
+                    <!-- Chart Container -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 lg:col-span-2 flex flex-col">
+                        <div class="flex-grow flex flex-col animate-in fade-in">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                                <div>
+                                    <h2 class="text-xl font-bold text-slate-900">Detailed Trajectory</h2>
+                                    <p class="text-sm text-slate-500">How your loan balance and payments evolve.</p>
+                                </div>
+                                <div class="flex items-center gap-3 mt-2 sm:mt-0">
+                                    <div class="bg-slate-50 px-3 py-1.5 rounded-md text-xs font-medium text-slate-500 border border-slate-200">
+                                        Assumes {{ defaultCPI }}% CPI Inflation
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="relative flex-grow min-h-[300px] w-full">
+                                <canvas id="overviewChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: OPPORTUNITY -->
+            <div v-show="activeTab === 'opportunity'" class="space-y-6">
+                <div class="text-center max-w-2xl mx-auto mb-8">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">Overpay vs Invest</h2>
+                    <p class="text-slate-600 text-lg">Thinking about paying extra to clear your balance faster? Let's see what makes the most mathematical sense for you.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Investment Setup -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 lg:col-span-1 h-fit">
+                        <h3 class="font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-sliders text-blue-500"></i> Variables</h3>
+                        <div class="space-y-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                    Spare Cash / Overpayment
+                                    <span class="relative group flex items-center cursor-help">
+                                        <i class="fa-solid fa-circle-question text-slate-400 hover:text-blue-500 transition-colors"></i>
+                                        <span class="absolute z-20 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                            Extra money you voluntarily pay towards your loan each month, on top of your automatic PAYE deductions.
+                                            <svg class="absolute text-slate-800 h-2 w-full left-1/2 -translate-x-1/2 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                                        </span>
+                                    </span>
+                                </label>
+                                <div class="relative flex items-center">
+                                    <span class="absolute left-3 text-slate-500">£</span>
+                                    <input type="number" min="0" v-model.number="monthlyOverpayment" class="w-full pl-8 pr-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                            </div>
+                            
+                            <div v-if="!projectionSummary.paysOffEarly">
+                                <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                    Expected Investment Return
+                                    <span class="relative group flex items-center cursor-help">
+                                        <i class="fa-solid fa-circle-question text-slate-400 hover:text-blue-500 transition-colors"></i>
+                                        <span class="absolute z-20 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                            The average annual percentage your money grows. Global stock market index funds historically average 5-7% after inflation.
+                                            <svg class="absolute text-slate-800 h-2 w-full left-1/2 -translate-x-1/2 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                                        </span>
+                                    </span>
+                                </label>
+                                <div class="relative flex items-center">
+                                    <input type="number" step="0.1" v-model.number="isaReturnRate" class="w-full pl-3 pr-8 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <span class="absolute right-3 text-slate-500">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Area -->
+                    <div class="lg:col-span-2 space-y-6">
+                        
+                        <!-- If loan pays off naturally -> Tell them to Overpay -->
+                        <div v-if="projectionSummary.paysOffEarly" class="bg-indigo-50 border border-indigo-200 p-8 rounded-xl shadow-sm text-center">
+                            <i class="fa-solid fa-arrow-trend-down text-5xl text-indigo-400 mb-4"></i>
+                            <h3 class="text-2xl font-bold text-indigo-900 mb-2">Smart Move: Better to Overpay Than Invest</h3>
+                            <p class="text-indigo-800 mb-6 max-w-lg mx-auto">Because you are naturally on track to pay off your loan completely, making voluntary overpayments is generally better than investing. It guarantees you avoid high compounding interest charges.</p>
+                            
+                            <div class="bg-white rounded-lg p-6 text-left border border-indigo-100 shadow-sm">
+                                <h4 class="font-bold text-slate-900 mb-2">The "Snowball" Effect</h4>
+                                <p class="text-slate-600 text-sm mb-4">
+                                    If you can afford it, overpaying by <strong>£100 to £250 extra per month</strong> can shave years off your term and potentially save you thousands in interest. 
+                                </p>
+                                <div class="bg-amber-50 text-amber-800 text-xs p-3 rounded flex gap-2">
+                                    <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+                                    You should avoid investing this extra cash for now, as the student loan interest rate is currently higher than most safe investment returns. Ensure you have a standard emergency cash fund built up first!
+                                </div>
+                            </div>
+
+                            <div v-if="monthlyOverpayment > 0 && opportunityData.interestSaved > 0" class="mt-6 bg-white rounded-xl p-5 border border-indigo-100 shadow-sm text-left">
+                                <h4 class="font-bold flex items-center gap-2 mb-4 text-indigo-900">
+                                    <i class="fa-solid fa-chart-bar text-indigo-500"></i> Impact of your £{{ monthlyOverpayment }}/mo overpayment
+                                </h4>
+                                
+                                <div class="space-y-6">
+                                    <!-- Interest Paid Visual -->
+                                    <div>
+                                        <div class="flex justify-between text-xs font-bold mb-1.5">
+                                            <span class="text-slate-600 uppercase tracking-wider">Total Interest Paid</span>
+                                            <span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Saving {{ formatMoney(opportunityData.interestSaved) }}</span>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-[10px] uppercase font-bold w-16 text-slate-400 text-right">Standard</span>
+                                                <div class="flex-grow h-5 bg-slate-100 rounded overflow-hidden">
+                                                    <div class="h-full bg-slate-400" :style="{ width: '100%' }"></div>
+                                                </div>
+                                                <span class="text-sm font-bold w-20 text-slate-700">{{ formatMoney(opportunityData.standardInterestPaid) }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-[10px] uppercase font-bold w-16 text-slate-400 text-right">Overpaying</span>
+                                                <div class="flex-grow h-5 bg-slate-100 rounded overflow-hidden">
+                                                    <div class="h-full bg-emerald-400 transition-all duration-500" :style="{ width: opportunityData.standardInterestPaid > 0 ? (opportunityData.overpaidInterestPaid / opportunityData.standardInterestPaid * 100) + '%' : '0%' }"></div>
+                                                </div>
+                                                <span class="text-sm font-bold w-20 text-emerald-700">{{ formatMoney(opportunityData.overpaidInterestPaid) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Time Visual -->
+                                    <div v-if="opportunityData.yearsSaved > 0" class="pt-4 border-t border-slate-100">
+                                        <div class="flex justify-between text-xs font-bold mb-1.5">
+                                            <span class="text-slate-600 uppercase tracking-wider">Time to Clear Loan</span>
+                                            <span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{{ opportunityData.yearsSaved }} years faster</span>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-[10px] uppercase font-bold w-16 text-slate-400 text-right">Standard</span>
+                                                <div class="flex-grow h-5 bg-slate-100 rounded overflow-hidden">
+                                                    <div class="h-full bg-slate-300" :style="{ width: '100%' }"></div>
+                                                </div>
+                                                <span class="text-sm font-bold w-20 text-slate-700">{{ opportunityData.standardPayoffYear }} yrs</span>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-[10px] uppercase font-bold w-16 text-slate-400 text-right">Overpaying</span>
+                                                <div class="flex-grow h-5 bg-slate-100 rounded overflow-hidden">
+                                                    <div class="h-full bg-emerald-400 transition-all duration-500" :style="{ width: (opportunityData.overpaidPayoffYear / opportunityData.standardPayoffYear * 100) + '%' }"></div>
+                                                </div>
+                                                <span class="text-sm font-bold w-20 text-emerald-700">{{ opportunityData.overpaidPayoffYear }} yrs</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- If loan gets written off -> Tell them to Invest -->
+                        <div v-else>
+                            <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 shadow-sm mb-6">
+                                <i class="fa-solid fa-circle-exclamation text-amber-500 text-xl mt-0.5"></i>
+                                <div>
+                                    <h3 class="font-bold text-amber-800">Warning: Wasted Cash</h3>
+                                    <p class="text-sm text-amber-700 mt-1">Because your balance will be written off anyway, making voluntary overpayments just means you pay more overall. The government was going to wipe that amount!</p>
+                                    <p class="text-sm font-bold text-amber-900 mt-2">Instead of overpaying, see how you can build wealth by investing that £{{ monthlyOverpayment }} elsewhere:</p>
+                                </div>
+                            </div>
+
+                            <!-- Toggle View -->
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div class="flex border-b border-slate-200">
+                                    <button 
+                                        @click="investType = 'isa'" 
+                                        class="flex-1 py-4 font-bold text-center transition-colors"
+                                        :class="investType === 'isa' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50'"
+                                    >
+                                        If you invest £{{ monthlyOverpayment }} in an ISA instead...
+                                    </button>
+                                    <button 
+                                        @click="investType = 'pension'" 
+                                        class="flex-1 py-4 font-bold text-center transition-colors"
+                                        :class="investType === 'pension' ? 'bg-purple-50 text-purple-700 border-b-2 border-purple-600' : 'text-slate-500 hover:bg-slate-50'"
+                                    >
+                                        If you invest £{{ monthlyOverpayment }} in a personal pension instead...
+                                    </button>
+                                </div>
+
+                                <div class="p-8 text-center relative overflow-hidden">
+                                    <i v-if="investType === 'isa'" class="fa-solid fa-arrow-trend-up absolute right-[-20px] top-[-20px] text-9xl text-blue-50 opacity-50"></i>
+                                    <i v-if="investType === 'pension'" class="fa-solid fa-piggy-bank absolute right-[-20px] top-[-20px] text-9xl text-purple-50 opacity-50"></i>
+                                    
+                                    <h4 class="text-slate-500 font-medium uppercase tracking-wider text-sm mb-2 relative z-10">
+                                        Projected Wealth after {{ remainingYears }} years
+                                    </h4>
+                                    <p class="text-5xl font-extrabold mb-4 relative z-10" :class="investType === 'isa' ? 'text-blue-600' : 'text-purple-600'">
+                                        {{ investType === 'isa' ? formatMoney3SF(opportunityData.isaTotal) : formatMoney3SF(opportunityData.pensionTotal) }}
+                                    </p>
+                                    
+                                    <div class="bg-slate-50 rounded-lg p-4 inline-block text-left relative z-10 border border-slate-100">
+                                        <p class="text-sm text-slate-700 flex items-center gap-2 mb-2">
+                                            <i class="fa-solid fa-check text-emerald-500"></i> 
+                                            {{ investType === 'isa' ? 'Completely tax-free withdrawals.' : 'Includes 20% government tax relief top-up.' }}
+                                        </p>
+                                        <p class="text-sm text-slate-700 flex items-center gap-2 mb-2">
+                                            <i class="fa-solid fa-chart-line text-emerald-500"></i> 
+                                            Assumes £{{ monthlyOverpayment }} invested monthly at {{ isaReturnRate }}% growth.
+                                        </p>
+                                        <p v-if="investType === 'pension'" class="text-sm text-slate-700 flex items-center gap-2">
+                                            <i class="fa-solid fa-lock text-emerald-500"></i> 
+                                            Cannot be accessed until retirement age (usually 55-57).
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Verdict -->
+                            <div class="bg-slate-900 rounded-xl p-6 text-white shadow-md flex items-center justify-between mt-6">
+                                <div>
+                                    <h3 class="font-bold text-lg mb-1">Financial return of overpaying loan:</h3>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-2xl font-black text-rose-400">
+                                        £0 (Wasted cash)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: REFRAME (Reality Check) -->
+            <div v-show="activeTab === 'reframe'" class="space-y-8">
+                <div class="text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">It's a Contribution, Not a Credit Card</h2>
+                    <p class="text-slate-600 text-lg">The way student loans operate in the UK means they behave more like a temporary graduate tax than a traditional loan. Let's look at the facts directly from GOV.UK.</p>
+                </div>
+
+                <!-- Comparison Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-8 max-w-4xl mx-auto">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr>
+                                    <th class="p-4 bg-slate-50 border-b border-slate-200 font-semibold text-slate-600 w-1/3">Feature</th>
+                                    <th class="p-4 bg-blue-50 border-b border-blue-200 font-bold text-blue-900 w-1/3">Student Loan (Graduate Tax)</th>
+                                    <th class="p-4 bg-rose-50 border-b border-rose-200 font-bold text-rose-900 w-1/3">Standard Bank Loan</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="p-4 font-medium text-slate-700">If your income drops</td>
+                                    <td class="p-4 bg-blue-50/30 text-blue-800"><i class="fa-solid fa-check text-emerald-500 mr-2"></i> Payments fall in proportion or automatically stop (£0) if below threshold</td>
+                                    <td class="p-4 bg-rose-50/30 text-rose-800">You still owe the fixed monthly amount</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="p-4 font-medium text-slate-700">Impact on Credit Score</td>
+                                    <td class="p-4 bg-blue-50/30 text-blue-800"><i class="fa-solid fa-check text-emerald-500 mr-2"></i> None. Not on your credit file</td>
+                                    <td class="p-4 bg-rose-50/30 text-rose-800">High balances hurt your score</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="p-4 font-medium text-slate-700">Monthly Repayment</td>
+                                    <td class="p-4 bg-blue-50/30 text-blue-800"><i class="fa-solid fa-check text-emerald-500 mr-2"></i> 9% of income over the threshold</td>
+                                    <td class="p-4 bg-rose-50/30 text-rose-800">Fixed amount regardless of income</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="p-4 font-medium text-slate-700">At the end of the term</td>
+                                    <td class="p-4 bg-blue-50/30 text-blue-800"><i class="fa-solid fa-check text-emerald-500 mr-2"></i> Remaining balance is completely written off</td>
+                                    <td class="p-4 bg-rose-50/30 text-rose-800">You must pay it all back in full</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="p-4 font-medium text-slate-700">If you pass away</td>
+                                    <td class="p-4 bg-blue-50/30 text-blue-800"><i class="fa-solid fa-check text-emerald-500 mr-2"></i> Debt is cancelled immediately</td>
+                                    <td class="p-4 bg-rose-50/30 text-rose-800">Can be taken from your estate</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Carousel -->
+                <div class="max-w-2xl mx-auto mt-8">
+                    <div class="bg-white rounded-2xl shadow-lg border border-blue-100 p-8 relative overflow-hidden min-h-[250px] flex flex-col justify-center">
+                        <div class="absolute top-0 left-0 w-full h-1" :class="facts[currentFactIndex].color"></div>
+                        
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0" :class="facts[currentFactIndex].iconBg">
+                                <i :class="facts[currentFactIndex].icon"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-900 mb-2">Did you know?</h3>
+                                <h4 class="font-bold text-lg mb-2" :class="facts[currentFactIndex].textColor">{{ facts[currentFactIndex].title }}</h4>
+                                <p class="text-slate-600 leading-relaxed">{{ facts[currentFactIndex].text }}</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-auto pt-4 flex items-center justify-between border-t border-slate-100">
+                            <div class="flex gap-1">
+                                <div v-for="(_, index) in facts" :key="index" class="w-2 h-2 rounded-full transition-all" :class="currentFactIndex === index ? 'bg-blue-600 w-4' : 'bg-slate-200'"></div>
+                            </div>
+                            <button @click="nextFact" class="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                                Next Fact <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: SUPPORT -->
+            <div v-show="activeTab === 'support'" class="max-w-3xl mx-auto space-y-8">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-200">
+                        <i class="fa-solid fa-leaf text-4xl"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">Financial Anxiety is Real</h2>
+                    <p class="text-slate-600 text-lg">Seeing a large number attached to your name can trigger a stress response. But remember: this number cannot hurt you. It cannot take your house, it cannot ruin your credit, and it is safely written off at the end of its term or if your circumstances permanently change.</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md border-l-4 border-l-emerald-500 p-8">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-900">
+                        <i class="fa-solid fa-spa text-emerald-500"></i>
+                        Calm your thoughts down
+                    </h3>
+                    <div class="space-y-4 text-slate-700 bg-emerald-50/50 p-6 rounded-lg border border-emerald-100">
+                        <p><strong>1. Catch the thought:</strong> What is your brain telling you right now? <br/><em class="text-slate-500">("I'll be paying this forever. I'm ruined. It's growing too fast.")</em></p>
+                        <p><strong>2. Challenge the evidence:</strong> Are your thoughts technically true based on the UK system? <br/><em class="text-slate-500">("No, it gets completely wiped in {{ remainingYears }} years regardless of the balance. And if I lose my job tomorrow, my payments legally drop to £0 instantly.")</em></p>
+                        <p><strong>3. Reframe it:</strong> <br/><em class="text-slate-500">"I don't have an impending crisis. I simply have a conditional 9% contribution on my higher earnings for a set period, in exchange for the degree that unlocked my career path."</em></p>
+                    </div>
+                    
+                    <!-- NEW: CBT Walkthrough Button -->
+                    <div class="mt-8 text-center">
+                        <button @click="startCBT" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 mx-auto">
+                            <i class="fa-solid fa-spa text-xl"></i> Walk me through step by step
+                        </button>
+                    </div>
+                    
+                    <div class="mt-8 pt-6 border-t border-slate-200">
+                        <p class="text-sm font-medium text-slate-800 mb-4">Need to talk to someone right now?</p>
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <a href="https://www.mind.org.uk/" target="_blank" class="flex-1 bg-white border-2 border-slate-200 hover:border-emerald-500 hover:text-emerald-700 text-center py-3 rounded-lg font-bold text-slate-700 transition-colors flex items-center justify-center gap-2">
+                                Visit Mind.org.uk <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                            </a>
+                            <a href="https://www.stepchange.org/" target="_blank" class="flex-1 bg-white border-2 border-slate-200 hover:border-blue-500 hover:text-blue-700 text-center py-3 rounded-lg font-bold text-slate-700 transition-colors flex items-center justify-center gap-2">
+                                StepChange Debt Charity <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+        
+        <!-- IMMERSIVE CBT EXERCISE MODAL -->
+        <transition name="cbt-fade">
+            <div v-if="showCBT" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                <div class="max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-blue-100 flex flex-col my-auto relative">
+                    
+                    <!-- Close Button -->
+                    <button @click="closeCBT" class="absolute top-4 right-4 text-blue-200 hover:text-white z-10 transition-colors bg-blue-950/30 hover:bg-blue-950/60 rounded-full w-8 h-8 flex items-center justify-center">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+
+                    <!-- Header & Progress Bar -->
+                    <div class="bg-blue-900 p-6 text-white relative">
+                        <div class="flex items-center gap-3 mb-2 pr-8">
+                            <svg class="text-blue-300 w-7 h-7" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/>
+                                <path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/><circle cx="16" cy="13" r="2"/><circle cx="18" cy="3" r="2"/>
+                            </svg>
+                            <h1 class="text-xl font-semibold tracking-wide">Student Loan Anxiety Reframer</h1>
+                        </div>
+                        <p class="text-blue-200 text-sm">A guided exercise to help you process financial stress.</p>
+                        
+                        <div class="absolute bottom-0 left-0 h-1.5 bg-blue-950 w-full">
+                            <div class="h-full bg-blue-400 transition-all duration-700 ease-out rounded-r-full" :style="{ width: ((cbtStep - 1) / (cbtTotalSteps - 1)) * 100 + '%' }"></div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Content Area -->
+                    <div class="p-6 sm:p-8 min-h-[420px] flex flex-col justify-center bg-blue-50 relative overflow-hidden">
+                        
+                        <transition name="slide-fade" mode="out-in">
+                            <!-- STEP 1: Trigger -->
+                            <div v-if="cbtStep === 1" :key="'step1'" class="w-full">
+                                <div class="bg-sky-50 border border-sky-100 rounded-2xl p-4 mb-8 flex items-start gap-3 text-sm text-sky-800">
+                                    <svg class="w-5 h-5 mt-0.5 shrink-0 text-sky-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    </svg>
+                                    <div>
+                                        <strong class="font-semibold block mb-0.5">Private & Secure</strong>
+                                        This is a temporary, private workspace. None of the information you type here is saved or stored anywhere.
+                                    </div>
+                                </div>
+                                <h2 class="text-2xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                                    <svg class="text-blue-500 w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                                    </svg>
+                                    The Trigger & Emotion
+                                </h2>
+                                <p class="text-slate-600 mb-6 leading-relaxed">What triggered your student loan anxiety today? (e.g., Logged into the portal, looked at a payslip, thinking about buying a house).</p>
+                                <textarea v-model="cbtData.trigger" class="w-full p-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none resize-none mb-8 transition-all" rows="3" placeholder="I felt anxious when..."></textarea>
+                                
+                                <div class="mb-2">
+                                    <label class="block text-slate-700 font-medium mb-3 flex justify-between">
+                                        <span>Rate your anxiety intensity</span>
+                                        <span class="font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full text-sm">{{ cbtData.initialAnxiety }} / 100</span>
+                                    </label>
+                                    <input type="range" min="0" max="100" v-model.number="cbtData.initialAnxiety" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                                    <div class="flex justify-between text-xs text-slate-400 mt-3 font-medium">
+                                        <span>Calm</span><span>Moderate</span><span>Overwhelming</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- STEP 2: Negative Thought -->
+                            <div v-else-if="cbtStep === 2" :key="'step2'" class="w-full">
+                                <h2 class="text-2xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                                    <svg class="text-purple-500 w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/><circle cx="16" cy="13" r="2"/><circle cx="18" cy="3" r="2"/>
+                                    </svg>
+                                    The Automatic Negative Thought
+                                </h2>
+                                <p class="text-slate-600 mb-6 leading-relaxed">What is the core fear or worst-case scenario your mind is telling you right now? Don't filter it—write exactly what your anxiety is saying.</p>
+                                <div class="bg-purple-100/50 border-l-4 border-purple-300 p-4 mb-6 rounded-r-xl text-sm text-purple-800">
+                                    <strong class="font-semibold block mb-1">Example:</strong> "The interest is growing so fast. I'll be in debt forever and I'm failing financially."
+                                </div>
+                                <textarea v-model="cbtData.negativeThought" class="w-full p-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all" rows="4" placeholder="My mind is telling me that..."></textarea>
+                            </div>
+
+                            <!-- STEP 3: Distortions -->
+                            <div v-else-if="cbtStep === 3" :key="'step3'" class="w-full">
+                                <h2 class="text-2xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                                    <svg class="text-teal-500 w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>
+                                    </svg>
+                                    Identify the Mental Traps
+                                </h2>
+                                <p class="text-slate-600 mb-6 leading-relaxed">Anxiety often relies on "cognitive distortions"—mental filters that warp reality. Which of these might be tricking your mind right now?</p>
+                                
+                                <div class="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto pr-2">
+                                    <div @click="toggleDistortion('catastrophising')" :class="cbtData.distortions.includes('catastrophising') ? 'border-teal-400 bg-teal-50 shadow-sm' : 'bg-white border-slate-200 hover:border-teal-200'" class="p-4 rounded-xl border-2 cursor-pointer transition-all duration-200">
+                                        <h3 :class="cbtData.distortions.includes('catastrophising') ? 'text-teal-800' : 'text-slate-700'" class="font-semibold mb-1 text-sm md:text-base">Catastrophising: <span class="font-normal text-slate-600">Assuming the absolute worst will happen.</span></h3>
+                                        <p class="text-xs text-slate-400"><span class="font-medium text-slate-500">Example:</span> Believing this debt will completely ruin your financial future.</p>
+                                    </div>
+                                    <div @click="toggleDistortion('fortune-telling')" :class="cbtData.distortions.includes('fortune-telling') ? 'border-teal-400 bg-teal-50 shadow-sm' : 'bg-white border-slate-200 hover:border-teal-200'" class="p-4 rounded-xl border-2 cursor-pointer transition-all duration-200">
+                                        <h3 :class="cbtData.distortions.includes('fortune-telling') ? 'text-teal-800' : 'text-slate-700'" class="font-semibold mb-1 text-sm md:text-base">Fortune Telling: <span class="font-normal text-slate-600">Trying to predict the future negatively.</span></h3>
+                                        <p class="text-xs text-slate-400"><span class="font-medium text-slate-500">Example:</span> Predicting you will never get a mortgage.</p>
+                                    </div>
+                                    <div @click="toggleDistortion('mental-filtering')" :class="cbtData.distortions.includes('mental-filtering') ? 'border-teal-400 bg-teal-50 shadow-sm' : 'bg-white border-slate-200 hover:border-teal-200'" class="p-4 rounded-xl border-2 cursor-pointer transition-all duration-200">
+                                        <h3 :class="cbtData.distortions.includes('mental-filtering') ? 'text-teal-800' : 'text-slate-700'" class="font-semibold mb-1 text-sm md:text-base">Mental Filtering: <span class="font-normal text-slate-600">Only paying attention to the scary parts.</span></h3>
+                                        <p class="text-xs text-slate-400"><span class="font-medium text-slate-500">Example:</span> Focusing exclusively on the terrifying total balance while ignoring the write-off date.</p>
+                                    </div>
+                                    <div @click="toggleDistortion('emotional-reasoning')" :class="cbtData.distortions.includes('emotional-reasoning') ? 'border-teal-400 bg-teal-50 shadow-sm' : 'bg-white border-slate-200 hover:border-teal-200'" class="p-4 rounded-xl border-2 cursor-pointer transition-all duration-200">
+                                        <h3 :class="cbtData.distortions.includes('emotional-reasoning') ? 'text-teal-800' : 'text-slate-700'" class="font-semibold mb-1 text-sm md:text-base">Emotional Reasoning: <span class="font-normal text-slate-600">Believing that because you feel a certain way, it must be true.</span></h3>
+                                        <p class="text-xs text-slate-400"><span class="font-medium text-slate-500">Example:</span> Feeling like you are drowning, so assuming the debt is actively dangerous.</p>
+                                    </div>
+                                    <div @click="toggleDistortion('other')" :class="cbtData.distortions.includes('other') ? 'border-teal-400 bg-teal-50 shadow-sm' : 'bg-white border-slate-200 hover:border-teal-200'" class="p-4 rounded-xl border-2 cursor-pointer transition-all duration-200">
+                                        <h3 :class="cbtData.distortions.includes('other') ? 'text-teal-800' : 'text-slate-700'" class="font-semibold text-sm md:text-base">Other: <span class="font-normal text-slate-600">Something else?</span></h3>
+                                        <div v-if="cbtData.distortions.includes('other')" class="mt-3" @click.stop>
+                                            <textarea v-model="cbtData.otherDistortionText" class="w-full p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-400 outline-none resize-none text-sm transition-all" rows="2" placeholder="My mind is tricking me by..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- STEP 4: Interlude -->
+                            <div v-else-if="cbtStep === 4" :key="'step4'" class="w-full text-center flex flex-col items-center justify-center">
+                                <div class="w-20 h-20 bg-blue-200 rounded-full flex items-center justify-center mb-6">
+                                    <svg class="text-blue-700 w-10 h-10" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                                    </svg>
+                                </div>
+                                <h2 class="text-3xl font-bold text-blue-900 mb-4">You are doing brilliantly.</h2>
+                                <p class="text-slate-600 text-lg leading-relaxed max-w-md mx-auto">
+                                    The first step is simply understanding how your mind might be tricking you. By recognising these mental patterns, you take back control.
+                                </p>
+                                <p class="text-slate-500 mt-6 max-w-md mx-auto">
+                                    Now that we've caught the negative thought, let's look at the actual facts together.
+                                </p>
+                            </div>
+
+                            <!-- STEP 5: Challenge -->
+                            <div v-else-if="cbtStep === 5" :key="'step5'" class="w-full">
+                                <h2 class="text-2xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                                    <svg class="text-sky-500 w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>
+                                    </svg>
+                                    Challenge the Thought
+                                </h2>
+                                <p class="text-slate-600 mb-4 leading-relaxed">Let's look at the evidence. Read the facts below, then write down how they challenge your negative thought.</p>
+                                <div class="bg-sky-100/60 border border-sky-200 rounded-2xl p-5 mb-6">
+                                    <h4 class="font-semibold text-sky-900 mb-3 flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-sky-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/>
+                                        </svg>
+                                        Structural Reality Check
+                                    </h4>
+                                    <ul class="text-sm text-sky-900 space-y-3 list-disc pl-5 leading-relaxed">
+                                        <li><strong>It is a Tax:</strong> It functions as a 9% graduate tax over a specific earning threshold, not a commercial bank loan.</li>
+                                        <li><strong>The Balance is a Ghost:</strong> The debt is legally wiped after 30 or 40 years, regardless of how much you owe. The total figure rarely matters.</li>
+                                        <li><strong>Credit Safe:</strong> It does NOT go on your credit file and does NOT stop you from getting a mortgage (lenders just see it as a normal monthly tax deduction).</li>
+                                        <li><strong>The Safety Net:</strong> If you lose your job or drop below the threshold, payments legally stop immediately. £0 income = £0 payments.</li>
+                                    </ul>
+                                </div>
+                                <textarea v-model="cbtData.evidence" class="w-full p-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-400 outline-none resize-none transition-all" rows="3" placeholder="Looking at the facts, I can see that..."></textarea>
+                            </div>
+
+                            <!-- STEP 6: Reframe -->
+                            <div v-else-if="cbtStep === 6" :key="'step6'" class="w-full">
+                                <h2 class="text-2xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                                    <svg class="text-emerald-500 w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+                                    </svg>
+                                    The Reframe
+                                </h2>
+                                <p class="text-slate-600 mb-6 leading-relaxed">Based on the evidence, write a new, balanced thought. It doesn't have to be overly positive, just realistic.</p>
+                                <div class="bg-emerald-100/60 border-l-4 border-emerald-300 p-4 mb-6 rounded-r-xl text-sm text-emerald-800">
+                                    <strong class="font-semibold block mb-1">Example:</strong> "The total balance is high, but it functions like a temporary tax. It will not stop me from buying a house, and it will eventually be written off."
+                                </div>
+                                <textarea v-model="cbtData.reframedThought" class="w-full p-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none resize-none mb-8 transition-all" rows="3" placeholder="A more realistic way to look at this is..."></textarea>
+                                
+                                <div class="mb-2">
+                                    <label class="block text-slate-700 font-medium mb-3 flex justify-between">
+                                        <span>Re-rate your anxiety intensity now</span>
+                                        <span class="font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full text-sm">{{ cbtData.finalAnxiety }} / 100</span>
+                                    </label>
+                                    <input type="range" min="0" max="100" v-model.number="cbtData.finalAnxiety" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600">
+                                </div>
+                            </div>
+
+                            <!-- STEP 7: Summary -->
+                            <div v-else-if="cbtStep === 7" :key="'step7'" class="w-full text-center">
+                                <transition name="zoom-in" appear>
+                                    <div>
+                                        <div :class="cbtData.finalAnxiety < cbtData.initialAnxiety ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-200 text-blue-600'" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                                            <svg v-if="cbtData.finalAnxiety < cbtData.initialAnxiety" class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                                            <svg v-else class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"/></svg>
+                                        </div>
+                                        
+                                        <div v-if="cbtData.finalAnxiety < cbtData.initialAnxiety">
+                                            <h2 class="text-3xl font-bold text-blue-900 mb-3">You've reframed your anxiety</h2>
+                                            <p class="text-slate-600 text-lg max-w-md mx-auto">You successfully challenged the fear with evidence, and your anxiety score dropped. Well done!</p>
+                                        </div>
+                                        <div v-else>
+                                            <h2 class="text-3xl font-bold text-blue-900 mb-3">You took a great first step</h2>
+                                            <p class="text-slate-600 text-lg max-w-md mx-auto leading-relaxed">It is completely normal if your anxiety hasn't dropped yet. Processing these feelings takes time, and you should be proud of yourself for bravely examining your thoughts today.</p>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left mb-8 mt-6">
+                                            <div class="bg-white p-6 rounded-2xl border border-slate-200 relative overflow-hidden">
+                                                <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-400"></div>
+                                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Before</h3>
+                                                <p class="text-slate-700 italic mb-4 leading-relaxed">"{{ cbtData.negativeThought || 'No thought recorded.' }}"</p>
+                                                <div class="flex items-center gap-2 text-sm text-slate-500 font-medium">
+                                                    <span>Anxiety:</span><span class="bg-slate-200 text-slate-700 px-3 py-0.5 rounded-full">{{ cbtData.initialAnxiety }}/100</span>
+                                                </div>
+                                            </div>
+                                            <div class="bg-white p-6 rounded-2xl border border-blue-200 relative overflow-hidden shadow-sm">
+                                                <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                                                <h3 class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2">After</h3>
+                                                <p class="text-slate-800 font-medium mb-4 leading-relaxed">"{{ cbtData.reframedThought || 'No thought recorded.' }}"</p>
+                                                <div class="flex items-center gap-2 text-sm text-slate-500 font-medium">
+                                                    <span>Anxiety:</span><span class="bg-blue-100 text-blue-800 px-3 py-0.5 rounded-full">{{ cbtData.finalAnxiety }}/100</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                                            <button @click="resetCBT" class="text-slate-500 hover:text-blue-700 font-medium underline underline-offset-4 transition-colors">
+                                                Start a new thought record
+                                            </button>
+                                            <button @click="closeCBT" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-md">
+                                                Return to Dashboard
+                                            </button>
+                                        </div>
+                                    </div>
+                                </transition>
+                            </div>
+                        </transition>
+
+                    </div>
+
+                    <!-- Footer Navigation -->
+                    <div v-if="cbtStep < cbtTotalSteps" class="bg-white p-5 border-t border-slate-100 flex justify-between items-center rounded-b-3xl">
+                        <button @click="prevCBTStep" :disabled="cbtStep === 1" :class="cbtStep === 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-100'" class="flex items-center gap-1 px-4 py-2.5 rounded-xl font-medium transition-colors">
+                            <i class="fa-solid fa-chevron-left text-sm"></i> Back
+                        </button>
+                        
+                        <button @click="nextCBTStep" class="flex items-center gap-2 px-7 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl font-medium transition-all shadow-md shadow-blue-200">
+                            {{ cbtStep === cbtTotalSteps - 1 ? 'Complete' : 'Next' }}
+                            <i v-if="cbtStep < cbtTotalSteps - 1" class="fa-solid fa-chevron-right text-sm"></i>
+                            <i v-else class="fa-solid fa-check"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Persistent Disclaimer -->
+                    <div class="text-center p-4 text-xs text-slate-400 bg-slate-50 border-t border-slate-200 rounded-b-3xl">
+                        This is an educational exercise designed to help manage financial stress. It is not a substitute for professional mental health support.
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        // UK Gov Plan Defaults (2024/2025 guidelines)
+        const PLAN_DETAILS = {
+            1: { id: 1, name: 'Plan 1', threshold: 24990, writeOffYears: 25, baseInterest: 6.25, dynamicInterest: false },
+            2: { id: 2, name: 'Plan 2', threshold: 27295, writeOffYears: 30, baseInterest: 7.9, dynamicInterest: true },
+            4: { id: 4, name: 'Plan 4 (Scotland)', threshold: 31395, writeOffYears: 30, baseInterest: 6.25, dynamicInterest: false },
+            5: { id: 5, name: 'Plan 5', threshold: 25000, writeOffYears: 40, baseInterest: 4.0, dynamicInterest: false }
+        };
+
+        const FACTS = [
+            {
+                title: "The 9% Rule",
+                text: "You only repay 9% of your income over the threshold. Earn £1,000 above the threshold? You pay 9% of that extra amount—just £90 a year, or £7.50 a month!",
+                icon: "fa-solid fa-calculator", iconBg: "bg-emerald-100 text-emerald-600", textColor: "text-emerald-700", color: "bg-emerald-500"
+            },
+            {
+                title: "Invisible to Mortgages",
+                text: "Student contributions do not appear on your credit file. Mortgage lenders don't care about your massive total balance; they only look at your monthly take-home pay for affordability.",
+                icon: "fa-solid fa-house-chimney", iconBg: "bg-blue-100 text-blue-600", textColor: "text-blue-700", color: "bg-blue-500"
+            },
+            {
+                title: "Vs. Predatory Loans",
+                text: "Think of the alternative. Guarantor loans and private personal loans can charge between 30% to 50% APR with fixed payments that can bankrupt you. Your student balance is subsidized, low-risk, and linked to success.",
+                icon: "fa-solid fa-shield-halved", iconBg: "bg-cyan-100 text-cyan-600", textColor: "text-cyan-700", color: "bg-cyan-500"
+            },
+            {
+                title: "Automatic PAYE Deductions",
+                text: "You never actively pay a bill. Repayments are deducted automatically from your salary via PAYE, exactly like Income Tax. You can't accidentally miss a payment or get late fees.",
+                icon: "fa-solid fa-file-invoice-dollar", iconBg: "bg-purple-100 text-purple-600", textColor: "text-purple-700", color: "bg-purple-500"
+            },
+            {
+                title: "Safe During Hardship",
+                text: "If your income drops below the threshold, your payments stop entirely. Debt collectors will never chase you for missed student payments because none are due!",
+                icon: "fa-solid fa-umbrella", iconBg: "bg-pink-100 text-pink-600", textColor: "text-pink-700", color: "bg-pink-500"
+            }
+        ];
+
+        createApp({
+            data() {
+                return {
+                    // App State
+                    appState: 'start', // start, onboarding_1, onboarding_2, dashboard, profile
+                    activeTab: 'overview', // overview, opportunity, reframe, support
+                    
+                    // Constants
+                    plans: PLAN_DETAILS,
+                    defaultCPI: 2.5,
+                    facts: FACTS,
+                    currentFactIndex: 0,
+                    
+                    // User Inputs
+                    planSelection: null, // Can be ID or "unknown"
+                    loanStartYear: null,
+                    currentBalance: null,
+                    currentSalary: null,
+                    peakSalary: null,
+                    yearsToPeak: 15,
+                    
+                    // Unknown Plan Wizard State
+                    isScottish: null,
+                    unknownStartYear: null,
+                    determinedPlanId: null,
+
+                    // What If Scenarios
+                    scenarioType: 'none', // none, career_break, part_time
+                    scenarioStartYear: 1,
+                    scenarioDuration: 2,
+                    partTimeSalary: 20000,
+                    
+                    // Opportunity Cost
+                    monthlyOverpayment: 100,
+                    isaReturnRate: 5.0,
+                    investType: 'isa', // isa, pension
+                    
+                    // Chart Ref
+                    chartInstance: null,
+                    
+                    // CBT Modal State
+                    showCBT: false,
+                    cbtStep: 1,
+                    cbtTotalSteps: 7,
+                    cbtData: {
+                        trigger: '',
+                        initialAnxiety: 50,
+                        negativeThought: '',
+                        distortions: [],
+                        otherDistortionText: '',
+                        evidence: '',
+                        reframedThought: '',
+                        finalAnxiety: 50
+                    }
+                }
+            },
+            computed: {
+                activePlanId() {
+                    // Resolve the actual Plan ID whether explicitly selected or determined by the wizard
+                    if (this.planSelection === 'unknown' && this.determinedPlanId) return this.determinedPlanId;
+                    if (this.planSelection !== 'unknown' && this.planSelection !== null) return this.planSelection;
+                    return null;
+                },
+                planYearWarning() {
+                    // Validation: Return warning message if Year doesn't match selected Gov Plan
+                    if (this.planSelection === 'unknown' || this.activePlanId === null || !this.loanStartYear || this.loanStartYear < 1990) return null;
+                    
+                    if (this.activePlanId === 1 && this.loanStartYear > 2012) {
+                        return "Hmm, that doesn't quite match up! Plan 1 is for courses that started before September 2012. Please double-check your plan or start year.";
+                    }
+                    if (this.activePlanId === 2 && (this.loanStartYear < 2012 || this.loanStartYear > 2023)) {
+                        return "Hmm, that doesn't quite match up! Plan 2 is for courses that started between September 2012 and July 2023. Please double-check your plan or start year.";
+                    }
+                    if (this.activePlanId === 5 && this.loanStartYear < 2023) {
+                        return "Hmm, that doesn't quite match up! Plan 5 was only introduced for courses starting from August 2023 onwards. Please double-check your plan or start year.";
+                    }
+                    return null; // All good!
+                },
+                currentPlanDetails() {
+                    return this.plans[this.activePlanId] || this.plans[2]; // Default to plan 2 to prevent errors
+                },
+                remainingYears() {
+                    if (!this.loanStartYear || !this.activePlanId) return 30;
+                    const currentYear = new Date().getFullYear();
+                    // Assume write-off countdown starts roughly 3 years after taking out the loan
+                    const repaymentStartYear = this.loanStartYear + 3;
+                    const yearsElapsed = Math.max(0, currentYear - repaymentStartYear);
+                    return Math.max(0, this.currentPlanDetails.writeOffYears - yearsElapsed);
+                },
+                
+                projectionData() {
+                    if (!this.activePlanId || this.currentBalance === null) return [];
+                    
+                    const plan = this.currentPlanDetails;
+                    let balance = Number(this.currentBalance) || 0;
+                    let balanceReal = balance; 
+                    let totalPaidNominal = 0;
+                    let totalPaidReal = 0;
+                    
+                    const cSalary = Number(this.currentSalary) || 0;
+                    const pSalary = Number(this.peakSalary) || cSalary;
+                    const yToPeak = Number(this.yearsToPeak) || 1;
+                    
+                    const chartData = [];
+
+                    // Start from Year 0
+                    chartData.push({
+                        year: `Year 0`,
+                        actualYearNum: 0,
+                        balance: Math.round(balance),
+                        realBalance: Math.round(balanceReal),
+                        totalPaid: 0
+                    });
+
+                    for (let year = 1; year <= this.remainingYears; year++) {
+                        // Base Salary Logic
+                        let salary = cSalary;
+                        if (year <= yToPeak && yToPeak > 0) {
+                            salary = cSalary + ((pSalary - cSalary) * (year / yToPeak));
+                        } else if (year > yToPeak) {
+                            salary = pSalary;
+                        }
+
+                        // Apply What If Scenarios
+                        if (this.scenarioType !== 'none') {
+                            const start = Number(this.scenarioStartYear) || 1;
+                            const dur = Number(this.scenarioDuration) || 1;
+                            if (year >= start && year < start + dur) {
+                                if (this.scenarioType === 'career_break') salary = 0;
+                                if (this.scenarioType === 'part_time') salary = Number(this.partTimeSalary) || 0;
+                            }
+                        }
+
+                        // Repayment Logic
+                        let repayment = 0;
+                        if (salary > plan.threshold) {
+                            repayment = (salary - plan.threshold) * 0.09;
+                        }
+
+                        // Interest Logic
+                        let interestRate = plan.baseInterest;
+                        if (plan.dynamicInterest) {
+                            const upperThreshold = 49130;
+                            if (salary <= plan.threshold) {
+                                interestRate = 4.0;
+                            } else if (salary >= upperThreshold) {
+                                interestRate = plan.baseInterest;
+                            } else {
+                                const ratio = (salary - plan.threshold) / (upperThreshold - plan.threshold);
+                                interestRate = 4.0 + (ratio * (plan.baseInterest - 4.0)); 
+                            }
+                        }
+
+                        const interestAdded = balance * (interestRate / 100);
+                        
+                        if (balance > 0) {
+                            balance = balance + interestAdded - repayment;
+                            if (balance < 0) {
+                                repayment += balance; 
+                                balance = 0;
+                            }
+                            totalPaidNominal += repayment;
+
+                            const discountFactor = Math.pow(1 + (this.defaultCPI / 100), year);
+                            const repaymentReal = repayment / discountFactor;
+                            totalPaidReal += repaymentReal;
+                            balanceReal = balance / discountFactor;
+                        }
+
+                        chartData.push({
+                            year: `Year ${year}`,
+                            actualYearNum: year,
+                            balance: Math.round(Math.max(0, balance)),
+                            realBalance: Math.round(Math.max(0, balanceReal)),
+                            totalPaid: Math.round(totalPaidNominal)
+                        });
+                        
+                        if (balance <= 0) break; // Stop calculating if paid off
+                    }
+                    return chartData;
+                },
+                projectionSummary() {
+                    const data = this.projectionData;
+                    if (data.length === 0) return { totalPaidReal: 0, writtenOffReal: 0, paysOffEarly: false, payOffYear: null };
+                    
+                    const finalYear = data[data.length - 1];
+                    const paysOffEarly = finalYear.balance <= 0;
+                    
+                    return {
+                        totalPaidReal: finalYear.totalPaid, 
+                        writtenOffReal: finalYear.realBalance > 0 ? finalYear.realBalance : 0,
+                        paysOffEarly,
+                        payOffYear: paysOffEarly ? finalYear.actualYearNum : null
+                    }
+                },
+                averageMonthlyReal() {
+                    const years = this.projectionSummary.paysOffEarly ? this.projectionSummary.payOffYear : this.remainingYears;
+                    if (years === 0) return 0;
+                    return this.projectionSummary.totalPaidReal / (years * 12);
+                },
+                opportunityData() {
+                    let isaBalance = 0;
+                    let pensionBalance = 0;
+                    const monthlyOver = Number(this.monthlyOverpayment) || 0;
+                    const yearlyOverpayment = monthlyOver * 12;
+                    const plan = this.currentPlanDetails;
+                    const returnRate = Number(this.isaReturnRate) || 0;
+                    
+                    const pensionMultiplier = 1.25; // Basic rate 20% tax relief
+                    const yearlyPensionContribution = yearlyOverpayment * pensionMultiplier;
+
+                    const standardBalanceStart = Number(this.currentBalance) || 0;
+                    let standardBalance = standardBalanceStart;
+                    let overpaidBalance = standardBalanceStart;
+                    let standardTotalPaid = 0;
+                    let overpaidTotalPaid = 0;
+                    
+                    const cSalary = Number(this.currentSalary) || 0;
+                    const pSalary = Number(this.peakSalary) || cSalary;
+                    const yToPeak = Number(this.yearsToPeak) || 1;
+
+                    let standardPayoffYear = this.remainingYears;
+                    let overpaidPayoffYear = this.remainingYears;
+                    let standardPaidOff = false;
+                    let overpaidPaidOff = false;
+
+                    for (let year = 1; year <= this.remainingYears; year++) {
+                        let salary = cSalary;
+                        if (year <= yToPeak && yToPeak > 0) salary += ((pSalary - cSalary) * (year / yToPeak));
+                        else if (year > yToPeak) salary = pSalary;
+
+                        let baseRepayment = 0;
+                        if (salary > plan.threshold) baseRepayment = (salary - plan.threshold) * 0.09;
+                        
+                        let interestRate = plan.baseInterest;
+                        if (plan.dynamicInterest) {
+                            const upperThreshold = 49130;
+                            if (salary <= plan.threshold) {
+                                interestRate = 4.0;
+                            } else if (salary >= upperThreshold) {
+                                interestRate = plan.baseInterest;
+                            } else {
+                                const ratio = (salary - plan.threshold) / (upperThreshold - plan.threshold);
+                                interestRate = 4.0 + (ratio * (plan.baseInterest - 4.0)); 
+                            }
+                        }
+
+                        // Standard Track
+                        if (standardBalance > 0) {
+                            standardBalance = standardBalance * (1 + interestRate/100) - baseRepayment;
+                            if (standardBalance <= 0) { 
+                                baseRepayment += standardBalance; // Refund overcharge
+                                standardBalance = 0; 
+                                if (!standardPaidOff) { standardPayoffYear = year; standardPaidOff = true; }
+                            }
+                            standardTotalPaid += baseRepayment;
+                        } else if (!standardPaidOff) {
+                            standardPayoffYear = year - 1;
+                            standardPaidOff = true;
+                        }
+
+                        // Overpaid Track
+                        let totalRepaymentThisYear = baseRepayment + yearlyOverpayment;
+                        if (overpaidBalance > 0) {
+                            overpaidBalance = overpaidBalance * (1 + interestRate/100) - totalRepaymentThisYear;
+                            if (overpaidBalance <= 0) { 
+                                totalRepaymentThisYear += overpaidBalance; // Refund overcharge
+                                overpaidBalance = 0; 
+                                if (!overpaidPaidOff) { overpaidPayoffYear = year; overpaidPaidOff = true; }
+                            }
+                            overpaidTotalPaid += totalRepaymentThisYear;
+                        } else if (!overpaidPaidOff) {
+                            overpaidPayoffYear = year - 1;
+                            overpaidPaidOff = true;
+                        }
+
+                        isaBalance = (isaBalance + yearlyOverpayment) * (1 + returnRate/100);
+                        pensionBalance = (pensionBalance + yearlyPensionContribution) * (1 + returnRate/100);
+                    }
+
+                    const wastedOverpayment = standardTotalPaid < overpaidTotalPaid;
+                    const loanROI = this.projectionSummary.paysOffEarly ? 'Positive (Cleared early)' : '£0 (Wasted cash)';
+                    const standardInterestPaid = Math.max(0, standardTotalPaid - standardBalanceStart);
+                    const overpaidInterestPaid = Math.max(0, overpaidTotalPaid - standardBalanceStart);
+
+                    return {
+                        isaTotal: Math.round(isaBalance),
+                        pensionTotal: Math.round(pensionBalance),
+                        loanROI,
+                        wastedOverpayment,
+                        interestSaved: Math.max(0, standardTotalPaid - overpaidTotalPaid),
+                        yearsSaved: Math.max(0, standardPayoffYear - overpaidPayoffYear),
+                        standardInterestPaid,
+                        overpaidInterestPaid,
+                        standardPayoffYear,
+                        overpaidPayoffYear
+                    };
+                }
+            },
+            methods: {
+                formatMoney(amount) {
+                    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(amount);
+                },
+                formatMoney3SF(amount) {
+                    const rounded = Number(Number(amount).toPrecision(3));
+                    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(rounded);
+                },
+                nextFact() {
+                    this.currentFactIndex = (this.currentFactIndex + 1) % this.facts.length;
+                },
+                findPlan() {
+                    if (this.isScottish === true) {
+                        this.determinedPlanId = 4;
+                    } else if (this.isScottish === false && this.unknownStartYear) {
+                        if (this.unknownStartYear === 'pre2012') this.determinedPlanId = 1;
+                        if (this.unknownStartYear === '2012to2023') this.determinedPlanId = 2;
+                        if (this.unknownStartYear === 'post2023') this.determinedPlanId = 5;
+                    }
+                },
+                finishOnboarding() {
+                    // Ensure defaults are set if blank
+                    if(!this.currentSalary) this.currentSalary = 30000;
+                    if(!this.peakSalary) this.peakSalary = this.currentSalary;
+                    
+                    this.appState = 'dashboard';
+                    this.activeTab = 'overview';
+                    
+                    // Render chart after DOM updates to dashboard view
+                    this.$nextTick(() => {
+                        this.renderChart();
+                    });
+                },
+                
+                // CBT Modal Methods
+                startCBT() {
+                    this.resetCBT();
+                    this.showCBT = true;
+                },
+                closeCBT() {
+                    this.showCBT = false;
+                },
+                nextCBTStep() {
+                    if (this.cbtStep < this.cbtTotalSteps) this.cbtStep++;
+                },
+                prevCBTStep() {
+                    if (this.cbtStep > 1) this.cbtStep--;
+                },
+                resetCBT() {
+                    this.cbtStep = 1;
+                    this.cbtData = {
+                        trigger: '',
+                        initialAnxiety: 50,
+                        negativeThought: '',
+                        distortions: [],
+                        otherDistortionText: '',
+                        evidence: '',
+                        reframedThought: '',
+                        finalAnxiety: 50
+                    };
+                },
+                toggleDistortion(id) {
+                    const index = this.cbtData.distortions.indexOf(id);
+                    if (index > -1) {
+                        this.cbtData.distortions.splice(index, 1);
+                    } else {
+                        this.cbtData.distortions.push(id);
+                    }
+                },
+                
+                // Chart Engine
+                renderChart() {
+                    const canvas = document.getElementById('overviewChart');
+                    if (!canvas) return;
+                    
+                    const ctx = canvas.getContext('2d');
+                    
+                    if (this.chartInstance) {
+                        this.chartInstance.destroy();
+                    }
+                    
+                    // Filter labels to only show every 5 years or the very last year
+                    const labels = this.projectionData.map(d => {
+                        return (d.actualYearNum % 5 === 0 || d.actualYearNum === 0) ? d.year : '';
+                    });
+
+                    this.chartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels, // Use filtered labels
+                            datasets: [
+                                {
+                                    label: 'Cumulative Paid',
+                                    data: this.projectionData.map(d => d.totalPaid),
+                                    borderColor: '#3b82f6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                                    borderWidth: 3,
+                                    fill: true,
+                                    pointRadius: 0,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'Nominal Loan Balance',
+                                    data: this.projectionData.map(d => d.balance),
+                                    borderColor: '#cbd5e1',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    fill: false,
+                                    pointRadius: 0,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: "Real Loan Balance (Inflation Adj.)",
+                                    data: this.projectionData.map(d => d.realBalance),
+                                    borderColor: '#10b981',
+                                    borderWidth: 3,
+                                    fill: false,
+                                    pointRadius: 0,
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            plugins: {
+                                tooltip: {
+                                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                    padding: 12,
+                                    titleFont: { size: 14, family: 'Inter' },
+                                    bodyFont: { size: 13, family: 'Inter' },
+                                    callbacks: {
+                                        title: function(tooltipItems) {
+                                            // Ensure tooltip shows exact year even if label is hidden on x-axis
+                                            const index = tooltipItems[0].dataIndex;
+                                            return `Year ${index}`;
+                                        },
+                                        label: function(context) {
+                                            let label = context.dataset.label || '';
+                                            if (label) label += ': ';
+                                            if (context.parsed.y !== null) {
+                                                label += new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(context.parsed.y);
+                                            }
+                                            return label;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    border: { display: false },
+                                    grid: { color: '#f1f5f9' },
+                                    ticks: { color: '#64748b', callback: function(value) { return '£' + value / 1000 + 'k'; } } 
+                                },
+                                x: { 
+                                    border: { display: false },
+                                    grid: { display: false },
+                                    ticks: { 
+                                        color: '#64748b',
+                                        autoSkip: false // Force chart to respect our filtered empty labels
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            },
+            watch: {
+                projectionData: {
+                    handler() { 
+                        if (this.appState === 'dashboard' && this.activeTab === 'overview') {
+                            this.$nextTick(() => { this.renderChart(); });
+                        }
+                    },
+                    deep: true
+                },
+                activeTab(newTab) {
+                    if (newTab === 'overview') {
+                        this.$nextTick(() => { this.renderChart(); });
+                    }
+                },
+                appState(newState) {
+                    if(newState === 'dashboard' && this.activeTab === 'overview') {
+                        this.$nextTick(() => { this.renderChart(); });
+                    }
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
